@@ -75,69 +75,6 @@ Após iniciar a aplicação:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-## 📦 PASSO 1 - Implementado ✅
-
-### Setup e Autenticação
-
-- ✅ Estrutura de diretórios FastAPI
-- ✅ Configuração com Pydantic Settings
-- ✅ SQLAlchemy ORM com SQLite
-- ✅ Modelos de Usuários (User, Professor, Aluno)
-- ✅ Autenticação JWT
-- ✅ Hash de senha com bcrypt
-- ✅ Endpoints de registro e login
-- ✅ Dependency injection para rotas protegidas
-
-### Endpoints Disponíveis
-
-#### Autenticação
-- `POST /api/v1/auth/login` - Login
-- `POST /api/v1/auth/register/professor` - Registrar professor
-- `POST /api/v1/auth/register/aluno` - Registrar aluno
-- `GET /api/v1/auth/me` - Obter dados do usuário autenticado
-- `POST /api/v1/auth/change-password` - Mudar senha
-
-#### Saúde
-- `GET /health` - Health check
-- `GET /` - Informações da API
-
-## 🔐 Segurança
-
-- ✅ Senhas hash com bcrypt
-- ✅ JWT para autenticação
-- ✅ Validação de email com EmailStr (Pydantic)
-- ✅ CORS configurável
-- ✅ Dependency injection para proteção de rotas
-
-## 🗂️ Estrutura do Projeto
-
-```
-a3cad/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                 # App FastAPI principal
-│   ├── core/
-│   │   ├── config.py          # Configurações (Pydantic Settings)
-│   │   └── database.py        # SQLAlchemy setup
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── user.py            # Modelos: User, Professor, Aluno
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   └── user.py            # Schemas Pydantic para validação
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   └── auth.py            # Endpoints de autenticação
-│   └── utils/
-│       ├── __init__.py
-│       ├── security.py        # JWT, hash, etc
-│       └── constants.py       # Constantes e mensagens
-├── main.py                     # Entry point
-├── requirements.txt            # Dependências
-├── .env.example               # Exemplo de variáveis de ambiente
-└── README.md                  # Este arquivo
-```
-
 ## 🧪 Testando a API
 
 ### Exemplo: Registrar Professor
@@ -164,12 +101,6 @@ curl -X POST "http://localhost:8000/api/v1/auth/login" \
     "senha": "senha123456"
   }'
 ```
-
-## 📅 Próximos Passos
-
-- **PASSO 2**: Modelagem de Avaliações (Provas, Gabaritos, Respostas)
-- **PASSO 3**: Integração com IA (OpenAI/LangChain)
-- **PASSO 4**: Painéis do Professor e do Aluno
 
 ## 📝 Convenções de Código
 
