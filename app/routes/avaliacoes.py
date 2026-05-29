@@ -15,6 +15,7 @@ from app.schemas.avaliacao import (
     RespostaAlunoCreate,
     RespostaAlunoResponse,
 )
+from app.services.ia_service import corrigir_resposta_com_ia
 from app.utils.constants import UserRole
 
 router = APIRouter(prefix="/api/v1", tags=["avaliações"])
@@ -177,3 +178,54 @@ async def listar_respostas(
         respostas = db.query(RespostaAluno).filter(RespostaAluno.avaliacao_id.in_(avaliacoes)).all()
 
     return [RespostaAlunoResponse.model_validate(resposta) for resposta in respostas]
+
+
+@router.post("/respostas/{resposta_id}/corrigir", response_model=RespostaAlunoResponse)
+async def corrigir_resposta_aluno(
+    resposta_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Corrige a resposta do aluno usando IA e salva nota e feedback no banco."""
+    require_professor(current_user)
+
+    resposta = db.query(RespostaAluno).filter(RespostaAluno.id == resposta_id).first()
+    if not resposta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resposta do aluno não encontrada"
+        )
+
+    avaliacao = db.query(Avaliacao).filter(Avaliacao.id == resposta.avaliacao_id).first()
+    if not avaliacao or avaliacao.professor_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Avaliação não encontrada ou não pertence ao professor autenticado"
+        )
+
+    gabarito = db.query(Gabarito).filter(Gabarito.avaliacao_id == avaliacao.id).first()
+    if not gabarito:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gabarito não encontrado para esta avaliação"
+        )
+
+    try:
+        resultado = await corrigir_resposta_com_ia(
+            resposta_texto=resposta.texto_resposta,
+            gabarito_texto=gabarito.criterio,
+            descricao_avaliacao=avaliacao.descricao or avaliacao.titulo
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falha na correção da IA: {str(exc)}"
+        )
+
+    resposta.nota = resultado["nota"]
+    resposta.feedback = resultado["feedback"]
+    db.add(resposta)
+    db.commit()
+    db.refresh(resposta)
+
+    return RespostaAlunoResponse.model_validate(resposta)

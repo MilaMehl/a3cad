@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # CORS
     allowed_origins: List[str] = ["http://localhost:3000", "http://localhost:8501"]
     
+
     # Logging
     log_level: str = "INFO"
     
