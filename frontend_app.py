@@ -86,12 +86,10 @@ def tela_login():
                 return
             
             with st.spinner("Autenticando..."):
-                resposta = fazer_requisicao(
-                    "POST",
-                    "/auth/login",
-                    {"email": email, "password": senha},
-                    usar_token=False
-                )
+                url = f"{API_BASE_URL}/auth/login"
+                payload = {"username": email, "password": senha}
+                response = requests.post(url, data=payload, timeout=10)
+                resposta = response.json()
             
             if "access_token" in resposta:
                 st.session_state.token = resposta["access_token"]
@@ -102,7 +100,6 @@ def tela_login():
                 st.rerun()
             else:
                 st.error(f"❌ Erro no login: {resposta.get('detail', 'Email ou senha inválidos')}")
-
 
 # ============================================================================
 # Painel do Professor
