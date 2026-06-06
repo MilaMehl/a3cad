@@ -4,14 +4,12 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.core.database import get_db
-from app.models.avaliacao import Avaliacao, Gabarito, RespostaAluno
+from app.models.avaliacao import Avaliacao, RespostaAluno
 from app.models.user import User, Aluno
 from app.routes.auth import get_current_user
 from app.schemas.avaliacao import (
     AvaliacaoCreate,
     AvaliacaoResponse,
-    GabaritoCreate,
-    GabaritoResponse,
     RespostaAlunoCreate,
     RespostaAlunoResponse,
 )
@@ -52,6 +50,9 @@ async def criar_avaliacao(
         id=str(uuid.uuid4()),
         titulo=avaliacao_data.titulo,
         descricao=avaliacao_data.descricao,
+        instrucoes=avaliacao_data.instrucoes,
+        enunciado=avaliacao_data.enunciado,
+        gabarito_esperado=avaliacao_data.gabarito_esperado,
         professor_id=current_user.id
     )
 
@@ -74,50 +75,6 @@ async def listar_avaliacoes(
         avaliacoes = db.query(Avaliacao).all()
 
     return [AvaliacaoResponse.model_validate(avaliacao) for avaliacao in avaliacoes]
-
-
-@router.post("/gabaritos", response_model=GabaritoResponse, status_code=status.HTTP_201_CREATED)
-async def criar_gabarito(
-    gabarito_data: GabaritoCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Cria um gabarito para uma avaliação existente."""
-    require_professor(current_user)
-
-    avaliacao = db.query(Avaliacao).filter(Avaliacao.id == gabarito_data.avaliacao_id).first()
-    if not avaliacao or avaliacao.professor_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Avaliação não encontrada ou não pertence ao professor autenticado"
-        )
-
-    gabarito = Gabarito(
-        id=str(uuid.uuid4()),
-        avaliacao_id=gabarito_data.avaliacao_id,
-        criterio=gabarito_data.criterio
-    )
-
-    db.add(gabarito)
-    db.commit()
-    db.refresh(gabarito)
-
-    return GabaritoResponse.model_validate(gabarito)
-
-
-@router.get("/gabaritos", response_model=List[GabaritoResponse])
-async def listar_gabaritos(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Lista gabaritos visíveis ao usuário."""
-    if current_user.role == UserRole.PROFESSOR:
-        avaliacoes = db.query(Avaliacao.id).filter(Avaliacao.professor_id == current_user.id).subquery()
-        gabaritos = db.query(Gabarito).filter(Gabarito.avaliacao_id.in_(avaliacoes)).all()
-    else:
-        gabaritos = db.query(Gabarito).all()
-
-    return [GabaritoResponse.model_validate(gabarito) for gabarito in gabaritos]
 
 
 @router.post("/respostas", response_model=RespostaAlunoResponse, status_code=status.HTTP_201_CREATED)
@@ -152,6 +109,24 @@ async def criar_resposta_aluno(
         feedback=None
     )
 
+    db.add(resposta)
+    db.commit()
+    db.refresh(resposta)
+
+    try:
+        resultado = await corrigir_resposta_com_ia(
+            resposta_texto=resposta.texto_resposta,
+            gabarito_texto=avaliacao.gabarito_esperado,
+            descricao_avaliacao=avaliacao.enunciado
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falha na correção da IA: {str(exc)}"
+        )
+
+    resposta.nota = resultado["nota"]
+    resposta.feedback = resultado["feedback"]
     db.add(resposta)
     db.commit()
     db.refresh(resposta)
@@ -203,18 +178,11 @@ async def corrigir_resposta_aluno(
             detail="Avaliação não encontrada ou não pertence ao professor autenticado"
         )
 
-    gabarito = db.query(Gabarito).filter(Gabarito.avaliacao_id == avaliacao.id).first()
-    if not gabarito:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gabarito não encontrado para esta avaliação"
-        )
-
     try:
         resultado = await corrigir_resposta_com_ia(
             resposta_texto=resposta.texto_resposta,
-            gabarito_texto=gabarito.criterio,
-            descricao_avaliacao=avaliacao.descricao or avaliacao.titulo
+            gabarito_texto=avaliacao.gabarito_esperado,
+            descricao_avaliacao=avaliacao.enunciado
         )
     except Exception as exc:
         raise HTTPException(

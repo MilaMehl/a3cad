@@ -128,10 +128,13 @@ async def register_professor(
     db.refresh(user)
     db.refresh(professor)
     
-    return ProfessorResponse.model_validate(user)
+    user_data = UserResponse.model_validate(user).model_dump()
+    return ProfessorResponse.model_validate({
+        **user_data,
+        "disciplinas": professor.disciplinas.split(",") if professor.disciplinas else None,
+        "bio": professor.bio
+    })
 
-
-# ============== REGISTRO DE ALUNO ==============
 
 @router.post("/register/aluno", response_model=AlunoResponse, status_code=status.HTTP_201_CREATED)
 async def register_aluno(
@@ -182,8 +185,12 @@ async def register_aluno(
     db.refresh(user)
     db.refresh(aluno)
     
-    return AlunoResponse.model_validate(user)
-
+    user_data = UserResponse.model_validate(user).model_dump()
+    return AlunoResponse.model_validate({
+        **user_data,
+        "matricula": aluno.matricula,
+        "turma": aluno.turma
+    })
 
 # ============== OBTER USUÁRIO ATUAL ==============
 

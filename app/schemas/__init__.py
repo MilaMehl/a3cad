@@ -2,8 +2,6 @@
 from app.schemas.avaliacao import (
     AvaliacaoCreate,
     AvaliacaoResponse,
-    GabaritoCreate,
-    GabaritoResponse,
     RespostaAlunoCreate,
     RespostaAlunoResponse,
 )
@@ -33,8 +31,6 @@ __all__ = [
     "ChangePasswordRequest",
     "AvaliacaoCreate",
     "AvaliacaoResponse",
-    "GabaritoCreate",
-    "GabaritoResponse",
     "RespostaAlunoCreate",
     "RespostaAlunoResponse",
 ]

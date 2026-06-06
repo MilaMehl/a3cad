@@ -92,14 +92,66 @@ def tela_login():
                 resposta = response.json()
             
             if "access_token" in resposta:
+                usuario = resposta.get("user", {})
+                role = usuario.get("role", "aluno")
+                
                 st.session_state.token = resposta["access_token"]
-                st.session_state.user_role = resposta.get("role", "aluno")
-                st.session_state.user_id = resposta.get("id")
-                st.session_state.user_email = resposta.get("email")
-                st.success(f"✅ Bem-vindo, {resposta.get('nome', 'usuário')}!")
+                st.session_state.user_role = role.lower()
+                st.session_state.user_id = usuario.get("id")
+                st.session_state.user_email = usuario.get("email")
+                st.success(f"✅ Bem-vindo, {usuario.get('nome', usuario.get('email', 'usuário'))}!")
                 st.rerun()
             else:
                 st.error(f"❌ Erro no login: {resposta.get('detail', 'Email ou senha inválidos')}")
+
+def main():
+    """Função principal que controla o fluxo da aplicação."""
+    if st.session_state.token is None:
+        tela_login()
+    elif st.session_state.user_role == "professor":
+        painel_professor()
+    elif st.session_state.user_role == "aluno":
+        painel_aluno()
+    else:
+        st.error("❌ Role de usuário desconhecida. Faça login novamente.")
+        if st.button("Sair"):
+            st.session_state.token = None
+            st.session_state.user_role = None
+            st.session_state.user_id = None
+            st.session_state.user_email = None
+            st.rerun()            
+            def criar_avaliacao():
+                """Formulário para criar nova avaliação."""
+                st.subheader("✏️ Cadastrar Nova Avaliação")
+                
+                titulo = st.text_input("📝 Título da Avaliação")
+                descricao = st.text_area("📄 Descrição da Avaliação", height=100)
+                instrucoes = st.text_area("📋 Instruções para o Aluno", height=100)
+                enunciado = st.text_area("🧾 Enunciado da Questão", height=140)
+                gabarito_esperado = st.text_area("✅ Gabarito Esperado", height=120)
+                
+                if st.button("Criar Avaliação", type="primary", use_container_width=True):
+                    if not titulo or not enunciado or not gabarito_esperado:
+                        st.error("❌ Preencha Título, Enunciado e Gabarito Esperado!")
+                        return
+                    
+                    dados = {
+                        "titulo": titulo,
+                        "descricao": descricao or None,
+                        "instrucoes": instrucoes or None,
+                        "enunciado": enunciado,
+                        "gabarito_esperado": gabarito_esperado
+                    }
+                    
+                    with st.spinner("Criando avaliação..."):
+                        resposta = fazer_requisicao("POST", "/avaliacoes", dados)
+                    
+                    if "id" in resposta:
+                        st.success(f"✅ Avaliação criada com ID: {resposta['id']}")
+                        st.session_state.avaliacao_id_criada = resposta['id']
+                    else:
+                        erro_msg = resposta.get("detail") or resposta.get("message") or resposta.get("erro") or str(resposta)
+                        st.error(f"❌ Erro ao criar avaliação:\n{erro_msg}")
 
 # ============================================================================
 # Painel do Professor
@@ -121,8 +173,10 @@ def listar_avaliacoes_professor():
     for avaliacao in resposta:
         with st.expander(f"📖 {avaliacao.get('titulo', 'Sem título')} (ID: {avaliacao.get('id')})"):
             st.write(f"**Descrição:** {avaliacao.get('descricao', 'Sem descrição')}")
-            st.write(f"**Data de Criação:** {avaliacao.get('data_criacao', 'N/A')}")
+            st.write(f"**Enunciado:** {avaliacao.get('enunciado', 'Sem enunciado')}")
+            st.write(f"**Gabarito esperado:** {avaliacao.get('gabarito_esperado', 'Nenhum')}")
             st.write(f"**Instruções:** {avaliacao.get('instrucoes', 'Nenhuma')}")
+            st.write(f"**Data de Criação:** {avaliacao.get('data_criacao', 'N/A')}")
 
 
 def criar_avaliacao():
@@ -132,16 +186,20 @@ def criar_avaliacao():
     titulo = st.text_input("📝 Título da Avaliação")
     descricao = st.text_area("📄 Descrição da Avaliação", height=100)
     instrucoes = st.text_area("📋 Instruções para o Aluno", height=100)
+    enunciado = st.text_area("🧾 Enunciado da Questão", height=140)
+    gabarito_esperado = st.text_area("✅ Gabarito Esperado", height=120)
     
     if st.button("Criar Avaliação", type="primary", use_container_width=True):
-        if not titulo or not descricao:
-            st.error("❌ Preencha pelo menos Título e Descrição!")
+        if not titulo or not enunciado or not gabarito_esperado:
+            st.error("❌ Preencha Título, Enunciado e Gabarito Esperado!")
             return
         
         dados = {
             "titulo": titulo,
-            "descricao": descricao,
-            "instrucoes": instrucoes or None
+            "descricao": descricao or None,
+            "instrucoes": instrucoes or None,
+            "enunciado": enunciado,
+            "gabarito_esperado": gabarito_esperado
         }
         
         with st.spinner("Criando avaliação..."):
@@ -151,7 +209,8 @@ def criar_avaliacao():
             st.success(f"✅ Avaliação criada com ID: {resposta['id']}")
             st.session_state.avaliacao_id_criada = resposta['id']
         else:
-            st.error(f"❌ Erro ao criar avaliação: {resposta.get('detail', 'Erro desconhecido')}")
+            erro_msg = resposta.get("detail") or resposta.get("message") or resposta.get("erro") or str(resposta)
+            st.error(f"❌ Erro ao criar avaliação:\n{erro_msg}")
 
 
 def listar_respostas_alunos():
@@ -268,49 +327,52 @@ def painel_aluno():
     st.markdown(f"Logado como: **{st.session_state.user_email}**")
     st.markdown("---")
     
-    st.subheader("📊 Consultar Minha Resposta")
+    st.subheader("🧑‍🎓 Escolha uma avaliação para responder")
     
-    resposta_id = st.text_input(
-        "🔍 Digite o ID da sua resposta",
-        placeholder="ex: 550e8400-e29b-41d4-a716-446655440000"
-    )
+    avaliacoes = fazer_requisicao("GET", "/avaliacoes")
+    if "erro" in avaliacoes:
+        st.error(f"❌ Erro ao buscar avaliações: {avaliacoes['erro']}")
+        return
     
-    if st.button("Buscar", type="primary", use_container_width=True):
-        if not resposta_id:
-            st.error("❌ Digite o ID da resposta!")
+    if not avaliacoes or len(avaliacoes) == 0:
+        st.info("📭 Nenhuma avaliação disponível no momento.")
+        return
+    
+    opcoes = [f"{item['titulo']}" for item in avaliacoes]
+    selecionado = st.selectbox("Selecione a avaliação", opcoes)
+    avaliacao = avaliacoes[opcoes.index(selecionado)]
+    
+    st.markdown("---")
+    st.subheader("📌 Detalhes da Avaliação")
+    st.write(f"**Enunciado:** {avaliacao.get('enunciado', 'Nenhum enunciado')}")
+    st.write(f"**Instruções:** {avaliacao.get('instrucoes', 'Sem instruções adicionais')}" )
+    st.markdown("---")
+    
+    texto_resposta = st.text_area("✍️ Sua resposta", height=180)
+    
+    if st.button("Enviar Resposta e Corrigir", type="primary", use_container_width=True):
+        if not texto_resposta:
+            st.error("❌ Escreva sua resposta antes de enviar.")
             return
         
-        with st.spinner("Buscando resposta..."):
-            resposta = fazer_requisicao("GET", f"/respostas/{resposta_id}")
+        dados = {
+            "avaliacao_id": avaliacao["id"],
+            "texto_resposta": texto_resposta
+        }
+        
+        with st.spinner("Enviando resposta e corrigindo..."):
+            resposta = fazer_requisicao("POST", "/respostas", dados)
         
         if "erro" in resposta:
-            st.error(f"❌ Erro: {resposta['erro']}")
+            st.error(f"❌ Erro ao enviar resposta: {resposta['erro']}")
         elif "id" in resposta:
-            st.success("✅ Resposta encontrada!")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if resposta.get('nota') is not None:
-                    st.metric("Nota Final", f"{resposta['nota']}/10.0")
-                else:
-                    st.warning("⏳ Sua resposta ainda está sendo corrigida.")
-            
-            with col2:
-                st.metric("Status", "✅ Corrigida" if resposta.get('nota') is not None else "⏳ Pendente")
-            
+            st.success("✅ Resposta enviada e corrigida com sucesso!")
+            st.metric("Nota", f"{resposta.get('nota', '--')}/10.0")
             st.markdown("---")
-            
-            with st.expander("📖 Ver Minha Resposta"):
-                st.write(resposta.get('texto_resposta', 'Vazio'))
-            
-            if resposta.get('feedback'):
-                with st.expander("💬 Feedback Detalhado", expanded=True):
-                    st.info(resposta['feedback'])
-            else:
-                st.info("Aguarde o feedback quando a correção for concluída.")
+            with st.expander("💬 Feedback da Correção", expanded=True):
+                st.write(resposta.get('feedback', 'Nenhum feedback disponível.'))
         else:
-            st.error("❌ Resposta não encontrada.")
+            st.error(f"❌ Erro inesperado: {resposta}")
 
 
 # ============================================================================
