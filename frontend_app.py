@@ -218,29 +218,32 @@ def listar_respostas_alunos():
     st.subheader("📥 Respostas dos Alunos")
     
     # Filtro por avaliação (opcional)
-    avaliacao_id = st.text_input("🔍 Filtrar por ID da Avaliação (deixe em branco para ver todas)")
-    
-    endpoint = "/respostas"
-    if avaliacao_id:
-        endpoint += f"?avaliacao_id={avaliacao_id}"
-    
-    resposta = fazer_requisicao("GET", endpoint)
-    
+    aluno_filtro = st.text_input("🔍 Filtrar por Nome do Aluno (deixe em branco para ver todos)")
+    filtro_aluno = aluno_filtro.strip().lower()
+
+    resposta = fazer_requisicao("GET", "/respostas")
+
     if "erro" in resposta:
         st.error(f"❌ Erro ao buscar respostas: {resposta['erro']}")
         return
-    
+
     if not resposta or len(resposta) == 0:
         st.info("📭 Nenhuma resposta encontrada.")
         return
-    
+
+    exibidas = 0
     for idx, resposta_aluno in enumerate(resposta):
+        aluno_nome = resposta_aluno.get("aluno_nome", "").lower()
+        if filtro_aluno and filtro_aluno not in aluno_nome:
+            continue
+        
+        exibidas += 1
         col1, col2 = st.columns([3, 1])
         
         with col1:
             status_nota = "✅ Corrigida" if resposta_aluno.get('nota') is not None else "⏳ Pendente"
             st.write(
-                f"**{status_nota}** | Aluno: {resposta_aluno.get('aluno_id', 'N/A')} | "
+                f"**{status_nota}** | Aluno: {resposta_aluno.get('aluno_nome', resposta_aluno.get('aluno_id', 'N/A'))} | "
                 f"Nota: {resposta_aluno.get('nota', '--')} | "
                 f"ID: {resposta_aluno.get('id', 'N/A')}"
             )
@@ -258,6 +261,9 @@ def listar_respostas_alunos():
             st.write(f"**Resposta:** {resposta_aluno.get('texto_resposta', 'Vazio')}")
             if resposta_aluno.get('feedback'):
                 st.write(f"**Feedback da IA:** {resposta_aluno.get('feedback', 'N/A')}")
+    
+    if exibidas == 0:
+        st.warning("🔎 Nenhuma resposta encontrada para o filtro informado.")
 
 
 def corrigir_resposta_aluno(resposta_id: str):

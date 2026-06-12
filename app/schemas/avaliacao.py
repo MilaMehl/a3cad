@@ -32,6 +32,7 @@ class RespostaAlunoResponse(RespostaAlunoCreate):
     """Schema para retorno de resposta do aluno."""
     id: str
     aluno_id: str
+    aluno_nome: Optional[str] = None
     nota: Optional[float] = None
     feedback: Optional[str] = None
     data_criacao: datetime

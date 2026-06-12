@@ -148,11 +148,34 @@ async def listar_respostas(
                 detail="Perfil de aluno não encontrado"
             )
         respostas = db.query(RespostaAluno).filter(RespostaAluno.aluno_id == aluno.id).all()
-    else:
-        avaliacoes = db.query(Avaliacao.id).filter(Avaliacao.professor_id == current_user.id).subquery()
-        respostas = db.query(RespostaAluno).filter(RespostaAluno.avaliacao_id.in_(avaliacoes)).all()
+        return [RespostaAlunoResponse.model_validate(resposta) for resposta in respostas]
 
-    return [RespostaAlunoResponse.model_validate(resposta) for resposta in respostas]
+    avaliacoes = db.query(Avaliacao.id).filter(Avaliacao.professor_id == current_user.id).subquery()
+    resposta_rows = (
+        db.query(RespostaAluno, User.nome_completo.label("aluno_nome"))
+        .join(Aluno, RespostaAluno.aluno_id == Aluno.id)
+        .join(User, Aluno.user_id == User.id)
+        .filter(RespostaAluno.avaliacao_id.in_(avaliacoes))
+        .all()
+    )
+
+    resultados = []
+    for resposta, aluno_nome in resposta_rows:
+        resultados.append(
+            RespostaAlunoResponse.model_validate({
+                "id": resposta.id,
+                "avaliacao_id": resposta.avaliacao_id,
+                "aluno_id": resposta.aluno_id,
+                "aluno_nome": aluno_nome,
+                "texto_resposta": resposta.texto_resposta,
+                "nota": resposta.nota,
+                "feedback": resposta.feedback,
+                "data_criacao": resposta.data_criacao,
+                "data_atualizacao": resposta.data_atualizacao,
+            })
+        )
+
+    return resultados
 
 
 @router.post("/respostas/{resposta_id}/corrigir", response_model=RespostaAlunoResponse)
